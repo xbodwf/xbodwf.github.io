@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkEmoji from "remark-emoji";
 import rehypeHighlight from "rehype-highlight";
+import rehypeSlug from "rehype-slug";
 import hljs from "highlight.js";
 import { ContentCopy, Check } from "@mui/icons-material";
 import { useTheme } from "../contexts/ThemeContext";
@@ -152,36 +155,75 @@ const CodeBlock = ({
 // 递归提取所有文本内容
 function extractText(children: React.ReactNode): string {
   if (typeof children === "string") return children;
+  if (typeof children === "number") return String(children);
   if (Array.isArray(children)) return children.map(extractText).join("");
   if (typeof children === "object" && children && "props" in children)
     return extractText((children as any).props.children);
   return "";
 }
 
+const isExternalLink = (href?: string) => !!href && /^(https?:)?\/\//i.test(href);
+
 // Markdown 组件
 const Markdown = ({ content }: { content: string }) => {
   return (
     <ReactMarkdown
-      rehypePlugins={[rehypeHighlight]}
+      remarkPlugins={[remarkGfm, [remarkEmoji, { emoticon: false }]]}
+      rehypePlugins={[rehypeSlug, rehypeHighlight]}
       components={{
+        // 块级代码统一交给 CodeBlock 渲染（包括没有指定语言的情况）
+        pre({ children }) {
+          const child = React.Children.toArray(children)[0];
+          if (!React.isValidElement(child)) {
+            return <pre>{children}</pre>;
+          }
+          const childProps = child.props as {
+            className?: string;
+            children?: React.ReactNode;
+          };
+          const match = /language-([\w-]+)/.exec(childProps.className || "");
+          const code = extractText(childProps.children).replace(/\n$/, "");
+          return (
+            <CodeBlock
+              code={code}
+              language={match?.[1] || "text"}
+              className={childProps.className || ""}
+            />
+          );
+        },
+        // 走到这里的只会是行内代码
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         code({ className = "", children, node: _node, ...props }) {
-          const match = /language-(\w+)/.exec(className || "");
-          // 使用 extractText 提取文本
-          const codeString = extractText(children);
-          if (match) {
+          return (
+            <code className={`inline-code ${className}`} {...props}>
+              {children}
+            </code>
+          );
+        },
+        a({ href, children, ...props }) {
+          if (isExternalLink(href)) {
             return (
-              <CodeBlock
-                code={codeString.replace(/\n$/, "")}
-                language={match[1]}
-                className={className}
-              />
+              <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                {children}
+              </a>
             );
           }
           return (
-            <code className={`inline-code ${className}`} {...props}>
-              {codeString}
-            </code>
+            <a href={href} {...props}>
+              {children}
+            </a>
+          );
+        },
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        img({ node: _node, ...props }) {
+          return <img loading="lazy" decoding="async" {...props} />;
+        },
+        // 表格横向滚动，避免窄屏溢出
+        table({ children }) {
+          return (
+            <div className="table-wrapper">
+              <table>{children}</table>
+            </div>
           );
         },
       }}

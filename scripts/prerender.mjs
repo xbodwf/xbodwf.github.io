@@ -22,6 +22,7 @@ import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { parse as parseHtml } from 'node-html-parser'
 
 const ROOT = process.cwd()
 const DIST_DIR = path.join(ROOT, 'dist')
@@ -116,6 +117,63 @@ const markdownToText = (markdown) =>
 
 const truncate = (text, maxLength) =>
   text.length > maxLength ? `${text.slice(0, maxLength)}…` : text
+
+/**
+ * 从预渲染好的文章 HTML 里提取搜索索引的章节。
+ * 标题的 id 由 rehype-slug 生成，这里直接复用，保证和页面锚点一致。
+ */
+const extractSections = (bodyHtml) => {
+  const root = parseHtml(bodyHtml)
+  const content = root.querySelector('.article-content')
+  if (!content) return []
+
+  // 按节点递归取文本，元素之间补空格，避免表格单元格文字粘在一起
+  // 注意：node-html-parser 会把 <pre> 的内容当成原始文本，
+  // 里面是 <code class="...">代码</code> 的源码，需要把外层标签剥掉
+  const extractTextWithSpaces = (node) => {
+    if (node.nodeType === 3) return node.text || ''
+
+    if ((node.rawTagName || '').toLowerCase() === 'pre') {
+      return (node.text || '')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/^<[^>]+>/, '')
+        .replace(/<\/[^>]+>$/, '')
+    }
+
+    return node.childNodes.map(extractTextWithSpaces).join(' ')
+  }
+
+  const sections = []
+  let current = { heading: '', anchor: '', text: '' }
+
+  const flush = () => {
+    const text = current.text.replace(/\s+/g, ' ').trim()
+    if (current.heading || text) {
+      sections.push({ heading: current.heading, anchor: current.anchor, text })
+    }
+  }
+
+  for (const node of content.childNodes) {
+    const isHeading = node.nodeType === 1 && /^h[1-6]$/i.test(node.rawTagName || '')
+    if (isHeading) {
+      flush()
+      current = {
+        heading: node.text.trim(),
+        anchor: node.getAttribute('id') || '',
+        text: '',
+      }
+      continue
+    }
+
+    const text = extractTextWithSpaces(node).replace(/\s+/g, ' ').trim()
+    if (text) {
+      current.text += current.text ? ` ${text}` : text
+    }
+  }
+  flush()
+
+  return sections
+}
 
 const fetchText = async (filename) => {
   for (const base of REMOTE_BASES) {
@@ -361,8 +419,10 @@ const main = async () => {
   await writePage('/p', listHtml)
 
   // 每篇文章
+  const indexDocuments = []
   for (const article of articles) {
     const pathname = `/p/${article.id}/`
+    const rendered = renderRoute(`/p/${article.id}`, { ...baseData, path: pathname, article })
     const description = truncate(
       article.description || markdownToText(article.content),
       150,
@@ -370,7 +430,7 @@ const main = async () => {
     const title = `${article.title} - ${SITE_NAME}`
 
     const html = injectPage(template, {
-      ...renderRoute(`/p/${article.id}`, { ...baseData, path: pathname, article }),
+      ...rendered,
       head: buildHead({
         title,
         description,
@@ -382,6 +442,18 @@ const main = async () => {
       preloaded: { ...baseData, path: pathname, article },
     })
     await writePage(`/p/${article.id}`, html)
+
+    // 搜索索引：正文取自渲染结果，锚点与页面内标题 id 一致
+    indexDocuments.push({
+      id: article.id,
+      title: article.title,
+      description,
+      category: article.category || '',
+      tags: article.tags || [],
+      date: article.createdAt,
+      updated: article.updatedAt,
+      sections: extractSections(rendered.body),
+    })
   }
 
   // 404 兜底（GitHub Pages 对未知路径返回 404.html，交给前端路由）
@@ -408,7 +480,18 @@ const main = async () => {
     'utf8',
   )
 
-  console.log(`${LOG_PREFIX} 完成：预渲染 ${articles.length + 2} 个页面 + 404.html + sitemap.xml`)
+  // 搜索索引（搜索框只拉这一份同源 JSON）
+  const searchIndex = {
+    generatedAt: new Date().toISOString(),
+    documents: indexDocuments,
+  }
+  await writeFile(
+    path.join(DIST_DIR, 'search-index.json'),
+    JSON.stringify(searchIndex),
+    'utf8',
+  )
+
+  console.log(`${LOG_PREFIX} 完成：预渲染 ${articles.length + 2} 个页面 + 404.html + sitemap.xml + search-index.json`)
 }
 
 main().catch(error => {

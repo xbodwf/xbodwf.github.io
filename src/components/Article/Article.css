@@ -142,6 +142,186 @@
   line-height: 1.8;
 }
 
+/* ===== Markdown 正文排版 ===== */
+.article-content p {
+  margin: 0 0 1rem;
+  line-height: 1.8;
+}
+
+.article-content h1,
+.article-content h2,
+.article-content h3,
+.article-content h4,
+.article-content h5,
+.article-content h6 {
+  margin: 2rem 0 1rem;
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--text-primary);
+  scroll-margin-top: 5rem;
+}
+
+.article-content h1 {
+  font-size: 1.9rem;
+}
+
+.article-content h2 {
+  font-size: 1.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.article-content h3 {
+  font-size: 1.25rem;
+}
+
+.article-content ul,
+.article-content ol {
+  margin: 0 0 1rem;
+  padding-left: 1.6rem;
+  line-height: 1.8;
+}
+
+.article-content li {
+  margin-bottom: 0.35rem;
+}
+
+.article-content li > ul,
+.article-content li > ol {
+  margin-top: 0.35rem;
+  margin-bottom: 0;
+}
+
+/* 任务列表 */
+.article-content .contains-task-list {
+  list-style: none;
+  padding-left: 0.2rem;
+}
+
+.article-content .task-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.article-content .task-list-item input[type="checkbox"] {
+  margin-top: 0.55rem;
+  flex-shrink: 0;
+  accent-color: var(--primary-color);
+}
+
+/* 引用 */
+.article-content blockquote {
+  margin: 1.25rem 0;
+  padding: 0.6rem 1.1rem;
+  border-left: 4px solid var(--primary-color);
+  background-color: var(--bg-secondary);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-secondary);
+}
+
+.article-content blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+/* 分隔线 */
+.article-content hr {
+  margin: 2rem 0;
+  border: none;
+  border-top: 1px solid var(--border-color);
+}
+
+/* 链接 */
+.article-content a {
+  color: var(--primary-color);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.article-content a:hover {
+  color: var(--accent-color);
+  border-bottom-color: currentColor;
+  text-decoration: none;
+}
+
+/* 删除线 */
+.article-content del {
+  opacity: 0.7;
+}
+
+/* 图片 */
+.article-content img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.75rem 0;
+  border-radius: 8px;
+}
+
+/* 表格 */
+.article-content .table-wrapper {
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.article-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.article-content th,
+.article-content td {
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  text-align: left;
+  vertical-align: top;
+}
+
+.article-content th {
+  background-color: var(--bg-secondary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.article-content tr:last-child td {
+  border-bottom: none;
+}
+
+.article-content th:last-child,
+.article-content td:last-child {
+  border-right: none;
+}
+
+/* 脚注 */
+.article-content .footnotes {
+  margin-top: 3rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.article-content .footnotes h2 {
+  font-size: 1.1rem;
+  border-bottom: none;
+  padding-bottom: 0;
+  margin: 0 0 0.75rem;
+}
+
+.article-content .footnotes ol {
+  padding-left: 1.2rem;
+}
+
+/* 标题锚点被引用时轻微高亮 */
+.article-content :target {
+  scroll-margin-top: 5rem;
+}
+
 /* 代码块样式 */
 .article-content .code-block {
   margin: 1.5rem 0;

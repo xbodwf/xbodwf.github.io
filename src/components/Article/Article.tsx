@@ -94,21 +94,28 @@ const Article: React.FC = () => {
     fetchArticle()
   }, [id])
 
-  // 处理锚点定位（适配 HashRouter）
+  // 处理文章内锚点定位（如 /p/2/#9-表格-tables，来自站内搜索或外部链接）
   useEffect(() => {
-    if (article && location.hash) {
-      // 移除 URL hash 中的路由部分，只保留锚点
-      const anchor = location.hash.split('#').pop()
-      if (anchor && anchor !== id) {
-        setTimeout(() => {
-          const element = document.getElementById(anchor)
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth' })
-          }
-        }, 100)
-      }
+    if (!article || !location.hash) return
+    const rawAnchor = location.hash.replace(/^#+/, '')
+    if (!rawAnchor) return
+
+    // URL 里的 hash 是百分号编码的，先解码再找元素
+    let anchor = rawAnchor
+    try {
+      anchor = decodeURIComponent(rawAnchor)
+    } catch {
+      // 保底：用未解码的原始值
     }
-  }, [article, location.hash, id])
+
+    const timer = setTimeout(() => {
+      const element = document.getElementById(anchor)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' })
+      }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [article, location.hash])
 
   // 获取语言显示名称
   const getLanguageDisplayName = (lang: string): string => {

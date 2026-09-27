@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Search as SearchIcon, Close } from '@mui/icons-material'
 import { useNavigate } from 'react-router-dom'
 import { useLanguage } from '../../contexts/LanguageContext'
-import type { Article } from '../../types'
+import { loadSearchIndex, searchDocuments } from '../../utils/searchIndex'
+import type { SearchDocument, SearchHit } from '../../utils/searchIndex'
 import './SearchModal.css'
 
 interface SearchModalProps {
@@ -10,115 +11,41 @@ interface SearchModalProps {
   onClose: () => void
 }
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
   const { t } = useLanguage()
   const navigate = useNavigate()
   const [searchValue, setSearchValue] = useState('')
-  const [searchResults, setSearchResults] = useState<Article[]>([])
-  const [loading, setLoading] = useState(false)
-  const [articles, setArticles] = useState<Article[]>([])
+  const [documents, setDocuments] = useState<SearchDocument[]>([])
+  const [indexLoading, setIndexLoading] = useState(false)
+  const [indexError, setIndexError] = useState(false)
+  const indexRequested = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // 加载所有文章
+  // 第一次打开搜索时再加载索引（同源 JSON，只请求一次）
   useEffect(() => {
-    const loadArticles = async () => {
-      try {
-        // 先获取文章列表数据
-        const listResponse = await fetch('https://raw.githubusercontent.com/Xbodwf/Assets/main/articles/files.json');
-        if (!listResponse.ok) {
-          throw new Error('Failed to fetch article list');
-        }
-        
-        const { articles } = await listResponse.json();
-        
-        // 根据获取到的文章列表生成请求Promise数组
-        const articlePromises = articles.map(async (article: { id: string; filename: string; title?: string; description?: string }) => {
-          try {
-            const response = await fetch(`https://raw.githubusercontent.com/Xbodwf/Assets/main/articles/${article.filename}`,{
-        cache: "no-store"
-    });
-            if (!response.ok) return null;
-            
-            const content = await response.text();
-            const frontMatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-            
-            if (!frontMatterMatch) return null;
-            
-            const frontMatter = parseFrontMatter(frontMatterMatch[1]);
-            const articleContent = content.slice(frontMatterMatch[0].length).trim();
-            
-            return {
-              id: article.id,
-              title: frontMatter.title || article.title || `文章 ${article.id}`,
-              description: frontMatter.description || article.description || '',
-              content: articleContent,
-              createdAt: frontMatter.date || new Date().toISOString(),
-              updatedAt: frontMatter.updated || frontMatter.date || new Date().toISOString(),
-              category: frontMatter.category || '',
-              tags: frontMatter.tags || [],
-              authors: frontMatter.authors || []
-            }
-          } catch {
-            return null
-          }
-        })
-        
-        const loadedArticles = (await Promise.all(articlePromises)).filter(Boolean) as Article[]
-        setArticles(loadedArticles)
-      } catch (error) {
-        console.error('Failed to load articles:', error)
-      }
-    }
-    
-    loadArticles()
-  }, [])
+    if (!isOpen || indexRequested.current) return
+    indexRequested.current = true
 
-  // 解析 YAML front matter
-  const parseFrontMatter = (yamlContent: string) => {
-    const result: any = {}
-    const lines = yamlContent.split(/\r?\n/)
-    
-    for (const line of lines) {
-      const trimmedLine = line.trim()
-      if (!trimmedLine || trimmedLine.startsWith('#')) continue
-      
-      const colonIndex = trimmedLine.indexOf(':')
-      if (colonIndex === -1) continue
-      
-      const key = trimmedLine.slice(0, colonIndex).trim()
-      const value = trimmedLine.slice(colonIndex + 1).trim()
-      
-      if (key === 'tags' && value.startsWith('[') && value.endsWith(']')) {
-        result[key] = value.slice(1, -1).split(',').map(tag => tag.trim().replace(/['"]/g, ''))
-      } else {
-        result[key] = value.replace(/['"]/g, '')
-      }
-    }
-    
-    return result
-  }
+    setIndexLoading(true)
+    setIndexError(false)
 
-  // 搜索功能
-  useEffect(() => {
-    if (!searchValue.trim()) {
-      setSearchResults([])
-      return
-    }
+    loadSearchIndex()
+      .then(setDocuments)
+      .catch(error => {
+        console.error('Failed to load search index:', error)
+        indexRequested.current = false
+        setIndexError(true)
+      })
+      .finally(() => setIndexLoading(false))
+  }, [isOpen])
 
-    setLoading(true)
-    const searchTerm = searchValue.toLowerCase()
-    
-    const results = articles.filter(article => 
-      article.title.toLowerCase().includes(searchTerm) ||
-      (article.description?.toLowerCase().includes(searchTerm) ?? false) ||
-      article.content.toLowerCase().includes(searchTerm) ||
-      (article.category?.toLowerCase().includes(searchTerm) ?? false) ||
-      article.tags.some(tag => tag.toLowerCase().includes(searchTerm))
-    )
-    
-    setSearchResults(results)
-    setLoading(false)
-  }, [searchValue, articles])
+  // 本地检索，输入即出结果
+  const searchResults = useMemo(
+    () => (searchValue.trim() ? searchDocuments(documents, searchValue) : []),
+    [documents, searchValue],
+  )
 
   // 键盘事件处理
   useEffect(() => {
@@ -141,27 +68,30 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen])
 
-  const handleArticleClick = (articleId: string) => {
-    navigate(`/p/${articleId}`)
+  const handleArticleClick = (hit: SearchHit) => {
+    const anchor = hit.anchor ? `#${encodeURIComponent(hit.anchor)}` : ''
+    navigate(`/p/${hit.document.id}${anchor}`)
     onClose()
     setSearchValue('')
   }
 
   const clearSearch = () => {
     setSearchValue('')
-    setSearchResults([])
   }
 
   const highlightText = (text: string, searchTerm: string) => {
-    if (!searchTerm) return text
-    
-    const regex = new RegExp(`(${searchTerm})`, 'gi')
-    const parts = text.split(regex)
-    
-    return parts.map((part, index) => 
-      regex.test(part) ? (
+    const term = searchTerm.trim()
+    if (!term) return text
+
+    const regex = new RegExp(`(${escapeRegExp(term)})`, 'gi')
+    const lowerTerm = term.toLowerCase()
+
+    return text.split(regex).map((part, index) =>
+      part.toLowerCase() === lowerTerm ? (
         <mark key={index} className="search-highlight">{part}</mark>
-      ) : part
+      ) : (
+        part
+      )
     )
   }
 
@@ -193,10 +123,14 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
         </div>
         
         <div className="search-modal-content">
-          {loading ? (
+          {indexLoading ? (
             <div className="search-modal-loading">
               <div className="loading-spinner"></div>
               <span>{t('common.loading')}</span>
+            </div>
+          ) : indexError ? (
+            <div className="search-modal-no-results">
+              <p>{t('common.error')}</p>
             </div>
           ) : searchValue ? (
             searchResults.length > 0 ? (
@@ -205,29 +139,34 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
                   {t('search.resultsCount', { count: searchResults.length })}
                 </div>
                 <div className="search-modal-results">
-                  {searchResults.map((article) => (
+                  {searchResults.map((hit) => (
                     <div
-                      key={article.id}
+                      key={hit.document.id}
                       className="search-modal-result-item"
-                      onClick={() => handleArticleClick(article.id)}
+                      onClick={() => handleArticleClick(hit)}
                     >
                       <h3 className="search-result-title">
-                        {highlightText(article.title, searchValue)}
+                        {highlightText(hit.document.title, searchValue)}
                       </h3>
-                      {article.description && (
+                      {hit.snippet && (
                         <p className="search-result-description">
-                          {highlightText(article.description, searchValue)}
+                          {highlightText(hit.snippet, searchValue)}
                         </p>
                       )}
                       <div className="search-result-meta">
-                        {article.category && (
-                          <span className="search-result-category">
-                            {highlightText(article.category, searchValue)}
+                        {hit.heading && (
+                          <span className="search-result-section">
+                            § {highlightText(hit.heading, searchValue)}
                           </span>
                         )}
-                        {article.tags.length > 0 && (
+                        {hit.document.category && (
+                          <span className="search-result-category">
+                            {highlightText(hit.document.category, searchValue)}
+                          </span>
+                        )}
+                        {hit.document.tags.length > 0 && (
                           <div className="search-result-tags">
-                            {article.tags.map((tag, index) => (
+                            {hit.document.tags.map((tag, index) => (
                               <span key={index} className="search-result-tag">
                                 {highlightText(tag, searchValue)}
                               </span>
