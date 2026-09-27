@@ -164,7 +164,8 @@ const Markdown = ({ content }: { content: string }) => {
     <ReactMarkdown
       rehypePlugins={[rehypeHighlight]}
       components={{
-        code({ className = "", children, ...props }) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        code({ className = "", children, node: _node, ...props }) {
           const match = /language-(\w+)/.exec(className || "");
           // 使用 extractText 提取文本
           const codeString = extractText(children);

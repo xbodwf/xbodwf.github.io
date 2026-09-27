@@ -6,6 +6,10 @@ import { ja } from '../locales/ja'
 import type { Language } from '../types'
 import type { Translations, SupportedLanguage } from '../locales'
 import { SUPPORTED_LANGUAGES, LANGUAGE_INFO } from '../locales'
+import { getPreloadedData } from '../utils/preload'
+
+const isSupportedLanguage = (value: unknown): value is Language =>
+  typeof value === 'string' && (SUPPORTED_LANGUAGES as readonly string[]).includes(value)
 
 // 语言包映射
 const translations: Record<Language, Translations> = {
@@ -34,19 +38,29 @@ interface LanguageProviderProps {
 export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) => {
   // 获取浏览器默认语言
   const getBrowserLanguage = (): Language => {
+    if (typeof navigator === 'undefined') return 'zh'
     const browserLang = navigator.language.toLowerCase()
     if (browserLang.startsWith('zh')) return 'zh'
     if (browserLang.startsWith('ja')) return 'ja'
     return 'en'
   }
 
-  const [language, setLanguageState] = useState<Language>(() => {
-    const saved = localStorage.getItem('language') as Language
-    if (saved && ['zh', 'en', 'ja'].includes(saved)) {
-      return saved
+  const getInitialLanguage = (): Language => {
+    // 预渲染页面优先使用构建时注入的语言，保证 hydration 前后一致
+    const preloaded = getPreloadedData()
+    if (preloaded?.language) return preloaded.language
+
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem('language')
+      if (isSupportedLanguage(saved)) {
+        return saved
+      }
+      return getBrowserLanguage()
     }
-    return getBrowserLanguage()
-  })
+    return 'zh'
+  }
+
+  const [language, setLanguageState] = useState<Language>(getInitialLanguage)
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang)
@@ -59,6 +73,15 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
     // 初始化时设置 HTML lang 属性
     document.documentElement.lang = language
   }, [language])
+
+  // hydration 完成后再同步用户保存的语言，避免服务端/客户端渲染不一致
+  useEffect(() => {
+    const saved = window.localStorage.getItem('language')
+    if (isSupportedLanguage(saved) && saved !== language) {
+      setLanguageState(saved)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // 获取嵌套的翻译文本
   const getNestedTranslation = (path: string): string => {

@@ -69,7 +69,7 @@ const Home: React.FC = () => {
                   {t('nav.home')}
                 </a>
                 <a 
-                  href="/#/p/1" 
+                  href="/p/1" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="card-link"
@@ -124,16 +124,16 @@ const Home: React.FC = () => {
               <h4 className="footer-title">{t('home.footer.products.title')}</h4>
               <ul className="footer-links">
                 <li><a href="https://github.com/xbodwf" target="_blank" rel="noopener noreferrer">{t('home.footer.products.github')}</a></li>
-                <li><a href="#/p">{t('home.footer.products.projects')}</a></li>
-                <li><a href="#/download">{t('home.footer.products.downloads')}</a></li>
+                <li><a href="/p">{t('home.footer.products.projects')}</a></li>
+                <li><a href="/download">{t('home.footer.products.downloads')}</a></li>
               </ul>
             </div>
 
             <div className="footer-section">
               <h4 className="footer-title">{t('home.footer.resources.title')}</h4>
               <ul className="footer-links">
-                <li><a href="#/help">{t('home.footer.resources.documentation')}</a></li>
-                <li><a href="#/help">{t('home.footer.resources.tutorials')}</a></li>
+                <li><a href="/help">{t('home.footer.resources.documentation')}</a></li>
+                <li><a href="/help">{t('home.footer.resources.tutorials')}</a></li>
                 <li><a href="https://github.com/xbodwf/discussions" target="_blank" rel="noopener noreferrer">{t('home.footer.resources.community')}</a></li>
               </ul>
             </div>

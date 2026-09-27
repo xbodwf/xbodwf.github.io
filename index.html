@@ -1,13 +1,26 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Loading - Xbodwf</title>
+    <title>Xbodwf</title>
+    <meta name="description" content="Xbodwf 的个人站点：技术文章与开源项目。" />
+    <!--app-head-->
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // 兼容旧版 HashRouter 链接：/#/p/1 -> /p/1
+      ;(function () {
+        var hash = window.location.hash
+        if (hash.indexOf('#/') === 0) {
+          window.history.replaceState(null, '', hash.slice(1) + window.location.search)
+          // 预渲染的内容对应的是别的路由，交给客户端重新渲染
+          window.__HASH_REDIRECT__ = true
+        }
+      })()
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

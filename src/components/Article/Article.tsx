@@ -9,6 +9,7 @@ import ThemeManager from '../../utils/themeManager'
 import useDocumentTitle from '../../hooks/useDocumentTitle'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { loadArticle } from '../../utils/articleLoader'
+import { getPreloadedData } from '../../utils/preload'
 import type { Article as ArticleType } from '../../types'
 import './Article.css'
 
@@ -17,8 +18,13 @@ const Article: React.FC = () => {
   const location = useLocation()
   const { t, formatTime, formatRelativeTime } = useLanguage()
   const { theme } = useTheme()
-  const [article, setArticle] = useState<ArticleType | null>(null)
-  const [loading, setLoading] = useState(true)
+  // 预渲染页面会在 window.__PRELOADED__ 里带上本文数据，用作首屏状态
+  const getPreloadedArticle = (): ArticleType | null => {
+    const preloaded = getPreloadedData()?.article
+    return preloaded && preloaded.id === id ? preloaded : null
+  }
+  const [article, setArticle] = useState<ArticleType | null>(getPreloadedArticle)
+  const [loading, setLoading] = useState(() => getPreloadedArticle() === null)
   const [error, setError] = useState<string | null>(null)
   const [themeLoading, setThemeLoading] = useState(false)
 
@@ -50,6 +56,15 @@ const Article: React.FC = () => {
   }, [theme])
 
   useEffect(() => {
+    // 预渲染数据已经包含当前文章，无需再次请求
+    const preloaded = getPreloadedData()?.article
+    if (preloaded && preloaded.id === id) {
+      setArticle(preloaded)
+      setError(null)
+      setLoading(false)
+      return
+    }
+
     const fetchArticle = async () => {
       if (!id) {
         setError('Article ID is required')
@@ -335,7 +350,7 @@ const Article: React.FC = () => {
             
             {article.category && (
               <div className="article-meta-item">
-                <span className="article-meta-value article-category">{article.category} </span>
+                <span className="article-meta-value article-category">{`${article.category} `}</span>
               </div>
             )}
             

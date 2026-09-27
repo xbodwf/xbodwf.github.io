@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { CalendarToday, Category, Person } from '@mui/icons-material'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { loadAllArticles } from '../../utils/articleLoader'
+import { getPreloadedData } from '../../utils/preload'
 import useDocumentTitle from '../../hooks/useDocumentTitle'
 import type { Article } from '../../types'
 import './ArticleList.css'
@@ -10,13 +11,23 @@ import './ArticleList.css'
 const ArticleList: React.FC = () => {
   const { t, formatTime, formatRelativeTime } = useLanguage()
   const navigate = useNavigate()
-  const [articles, setArticles] = useState<Article[]>([])
-  const [loading, setLoading] = useState(true)
+  // 预渲染页面会在 window.__PRELOADED__ 里带上文章列表，用作首屏状态
+  const getPreloadedArticles = (): Article[] | null => {
+    const preloaded = getPreloadedData()?.articles
+    return preloaded && preloaded.length > 0 ? preloaded : null
+  }
+  const [articles, setArticles] = useState<Article[]>(() => getPreloadedArticles() ?? [])
+  const [loading, setLoading] = useState(() => getPreloadedArticles() === null)
   const [error, setError] = useState<string | null>(null)
 
   useDocumentTitle(t('nav.articles'))
 
   useEffect(() => {
+    // 预渲染页面已经包含文章列表，无需再次请求
+    if (getPreloadedArticles()) {
+      return
+    }
+
     const fetchArticles = async () => {
       try {
         setLoading(true)
